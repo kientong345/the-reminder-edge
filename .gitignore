@@ -1,0 +1,12 @@
+.pio/
+
+.env
+.env.*
+!.env.example
+
+.vscode
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
