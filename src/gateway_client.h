@@ -4,14 +4,13 @@
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <LittleFS.h>
 #include "define.h"
-#include "storage_manager.h"
 
 class GatewayClient {
 private:
     const char* baseUrl_;
     const char* edgeToken_;
-    StorageManager& storage_;
 
     bool beginRequest(WiFiClientSecure& client, HTTPClient& http, const String& url) {
         client.setInsecure();
@@ -40,6 +39,37 @@ private:
         return endIdx > idx ? json.substring(idx, endIdx) : "";
     }
 
+    bool saveFromHttp(HTTPClient& http, const char* destPath) {
+        int totalLen = http.getSize();
+        const char* tmpPath = "/audio.tmp";
+
+        if (LittleFS.exists(tmpPath)) {
+            LittleFS.remove(tmpPath);
+        }
+
+        File f = LittleFS.open(tmpPath, "w", true);
+        if (!f) {
+            Serial.println("[GatewayClient] Failed to create /audio.tmp");
+            return false;
+        }
+
+        int written = http.writeToStream(&f);
+        f.close();
+
+        if (written <= 0 || (totalLen > 0 && written != totalLen)) {
+            Serial.printf("[GatewayClient] Stream incomplete (%d/%d bytes)\n", written, totalLen);
+            LittleFS.remove(tmpPath);
+            return false;
+        }
+
+        if (LittleFS.exists(destPath)) {
+            LittleFS.remove(destPath);
+        }
+        bool ok = LittleFS.rename(tmpPath, destPath);
+        Serial.printf("[GatewayClient] Saved %s (%d bytes)\n", destPath, written);
+        return ok;
+    }
+
     bool downloadToFile(const String& url, const char* destPath) {
         WiFiClientSecure client;
         HTTPClient http;
@@ -55,14 +85,14 @@ private:
             return false;
         }
 
-        bool ok = storage_.saveFromHttp(http, destPath);
+        bool ok = saveFromHttp(http, destPath);
         http.end();
         return ok;
     }
 
 public:
-    GatewayClient(const char* baseUrl, const char* edgeToken, StorageManager& storage)
-        : baseUrl_(baseUrl), edgeToken_(edgeToken), storage_(storage) {}
+    GatewayClient(const char* baseUrl, const char* edgeToken)
+        : baseUrl_(baseUrl), edgeToken_(edgeToken) {}
 
     bool poll(const char* currentVersion, PollResult& out, CompactEvent* eventsBuf, int maxEvents) {
         WiFiClientSecure client;
@@ -118,13 +148,11 @@ public:
         return true;
     }
 
-    bool downloadTodayAudio(const char* version, const char* destPath) {
-        String url = String(baseUrl_) + "/audio?target=today&version=" + (version ? version : "");
-        return downloadToFile(url, destPath);
-    }
-
-    bool downloadNextAudio(const char* version, int idx, const char* destPath) {
-        String url = String(baseUrl_) + "/audio?target=next&version=" + (version ? version : "") + "&idx=" + idx;
+    bool downloadAudio(const char* target, const char* version, const char* destPath, int idx = -1) {
+        String url = String(baseUrl_) + "/audio?target=" + target + "&version=" + (version ? version : "");
+        if (idx >= 0) {
+            url += "&idx=" + String(idx);
+        }
         return downloadToFile(url, destPath);
     }
 };

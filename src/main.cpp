@@ -1,15 +1,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <LittleFS.h>
 #include "define.h"
-#include "storage_manager.h"
 #include "i2s_audio_player.h"
 #include "rtc_manager.h"
 #include "gateway_client.h"
 
-StorageManager storage;
-I2SAudioPlayer player(PIN_I2S_BCLK, PIN_I2S_LRC, PIN_I2S_DOUT);
-RtcManager rtc;
-GatewayClient gateway(GATEWAY_BASE, EDGE_TOKEN, storage);
+GatewayClient gateway(GATEWAY_BASE, EDGE_TOKEN);
 
 bool connectWiFi(uint32_t timeoutMs = 15000) {
     if (WiFi.status() == WL_CONNECTED) return true;
@@ -37,20 +34,20 @@ void syncWithGateway() {
     }
 
     PollResult res = {};
-    if (!gateway.poll(rtc.version(), res, rtc.eventsBuffer(), rtc.maxEvents())) {
+    if (!gateway.poll(rtc.version, res, rtc.events, MAX_EVENTS)) {
         return;
     }
 
-    rtc.applyPollResult(res);
+    applyPollResult(res);
     if (res.changed) {
         Serial.printf("[Main] Schedule updated (version=%s, events=%d, idx=%d)\n",
-                      rtc.version(), rtc.eventCount(), rtc.currentIdx());
+                      rtc.version, rtc.event_count, rtc.current_idx);
     }
-    if (res.changed || !storage.exists("/today.mp3")) {
-        gateway.downloadTodayAudio(rtc.version(), "/today.mp3");
+    if (res.changed || !LittleFS.exists("/today.mp3")) {
+        gateway.downloadAudio("today", rtc.version, "/today.mp3");
     }
-    if (res.changed || !storage.exists("/next.mp3")) {
-        gateway.downloadNextAudio(rtc.version(), rtc.currentIdx(), "/next.mp3");
+    if (res.changed || !LittleFS.exists("/next.mp3")) {
+        gateway.downloadAudio("next", rtc.version, "/next.mp3", rtc.current_idx);
     }
 }
 
@@ -61,12 +58,12 @@ void handleButtonWakeup() {
     }
 
     const char* path = (millis() - t0 >= HOLD_MS) ? "/today.mp3" : "/next.mp3";
-    if (!storage.exists(path)) {
+    if (!LittleFS.exists(path)) {
         syncWithGateway();
         disconnectWiFi();
     }
 
-    player.playFile(storage, path);
+    playAudio(path);
 
     while (digitalRead(PIN_BTN) == LOW) {
         delay(10);
@@ -76,28 +73,28 @@ void handleButtonWakeup() {
 void setup() {
     Serial.begin(115200);
     pinMode(PIN_BTN, INPUT_PULLUP);
-    storage.begin();
+    LittleFS.begin(true);
 
-    if (rtc.wakeupCause() == ESP_SLEEP_WAKEUP_EXT0) {
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
         handleButtonWakeup();
-        rtc.enterDeepSleep(PIN_BTN);
+        enterDeepSleep(PIN_BTN);
         return;
     }
 
-    if (rtc.isEventDue()) {
-        player.playFile(storage, "/next.mp3");
-        rtc.advanceEvent();
+    if (isEventDue()) {
+        playAudio("/next.mp3");
+        advanceEvent();
         if (connectWiFi()) {
-            gateway.downloadNextAudio(rtc.version(), rtc.currentIdx(), "/next.mp3");
+            gateway.downloadAudio("next", rtc.version, "/next.mp3", rtc.current_idx);
         }
     }
 
-    if (rtc.isPollDue()) {
+    if (isPollDue()) {
         syncWithGateway();
     }
 
     disconnectWiFi();
-    rtc.enterDeepSleep(PIN_BTN);
+    enterDeepSleep(PIN_BTN);
 }
 
 void loop() {
