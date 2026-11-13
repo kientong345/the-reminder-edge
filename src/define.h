@@ -19,7 +19,7 @@
 #define EDGE_TOKEN      ""
 #endif
 
-#define PIN_BTN         GPIO_NUM_0
+#define PIN_BTN         GPIO_NUM_15
 #define PIN_I2S_BCLK    17
 #define PIN_I2S_LRC     18
 #define PIN_I2S_DOUT    16

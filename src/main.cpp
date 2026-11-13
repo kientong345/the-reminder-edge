@@ -53,7 +53,7 @@ void syncWithGateway() {
 
 void handleButtonWakeup() {
     uint32_t t0 = millis();
-    while (digitalRead(PIN_BTN) == LOW && (millis() - t0) < HOLD_MS) {
+    while (digitalRead(PIN_BTN) == HIGH && (millis() - t0) < HOLD_MS) {
         delay(10);
     }
 
@@ -65,14 +65,14 @@ void handleButtonWakeup() {
 
     playAudio(path);
 
-    while (digitalRead(PIN_BTN) == LOW) {
+    while (digitalRead(PIN_BTN) == HIGH) {
         delay(10);
     }
 }
 
 void setup() {
     Serial.begin(115200);
-    pinMode(PIN_BTN, INPUT_PULLUP);
+    pinMode(PIN_BTN, INPUT_PULLDOWN);
     LittleFS.begin(true);
 
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {

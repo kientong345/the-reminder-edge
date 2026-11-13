@@ -74,7 +74,7 @@ inline void enterDeepSleep(gpio_num_t wakePin) {
     Serial.printf("[Rtc] Deep sleep for %u sec (idx=%d/%d)\n",
                   sleepSec, rtc.current_idx, rtc.event_count);
 
-    esp_sleep_enable_ext0_wakeup(wakePin, 0);
+    esp_sleep_enable_ext0_wakeup(wakePin, 1);
     esp_sleep_enable_timer_wakeup((uint64_t)sleepSec * 1000000ULL);
     esp_deep_sleep_start();
 }
