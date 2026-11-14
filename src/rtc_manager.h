@@ -57,10 +57,10 @@ inline bool isPollDue() {
 
 inline void enterDeepSleep(gpio_num_t wakePin) {
     uint32_t now = (uint32_t)time(nullptr);
-    uint32_t sleepSec = 1800;
+    uint32_t sleepSec = 600;
 
     if (now >= 1000000000UL) {
-        uint32_t nextWake = rtc.next_poll_ts > now ? rtc.next_poll_ts : now + 1800;
+        uint32_t nextWake = rtc.next_poll_ts > now ? rtc.next_poll_ts : now + 600;
         if (rtc.current_idx < rtc.event_count) {
             uint32_t remTs = rtc.events[rtc.current_idx].remind_ts;
             if (remTs > now && remTs < nextWake) {
